@@ -1,103 +1,430 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useMemo } from "react";
+import * as XLSX from "xlsx";
+import { Filter, FilterX } from "lucide-react";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [report, setReport] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    role: "",
+    evaluation: "",
+    nameSearch: "",
+  });
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const processExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setError("Vui lòng chọn file Excel!");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        if (!sheetName) throw new Error("Không tìm thấy sheet!");
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
+        }) as any[][];
+
+        const shippers = jsonData
+          .slice(1)
+          .filter(
+            (row: any[]) =>
+              row[7] === "Shipper-chính thức" || row[7] === "Admin"
+          );
+
+        if (shippers.length === 0)
+          throw new Error("Không có dữ liệu Shipper-chính thức hoặc Admin!");
+
+        const reportData = calculateReport(shippers);
+        setReport(reportData);
+      } catch (err) {
+        setError(`Lỗi: ${(err as Error).message}`);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    reader.onerror = () => {
+      setError("Lỗi đọc file!");
+      setIsLoading(false);
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const calculateReport = (shippers: any[]) => {
+    const report: any[] = [];
+    const shipperMap = new Map();
+
+    shippers.forEach((row: any[]) => {
+      const name = row[6];
+      const role = row[7];
+      const orders = parseInt(row[8]) || 0;
+      const signed = parseInt(row[9]) || 0;
+      const unsigned = orders - signed;
+
+      if (shipperMap.has(name)) {
+        const data = shipperMap.get(name);
+        data.orders += orders;
+        data.signed += signed;
+        data.unsigned += unsigned;
+      } else {
+        shipperMap.set(name, { orders, signed, unsigned, role });
+      }
+    });
+
+    let totalOrders = 0;
+    let totalSigned = 0;
+    let totalUnsigned = 0;
+
+    shipperMap.forEach((data, name) => {
+      totalOrders += data.orders;
+      totalSigned += data.signed;
+      totalUnsigned += data.unsigned;
+
+      const ratio = data.orders > 0 ? (data.signed / data.orders) * 100 : 0;
+      const target60 = data.orders * 0.6;
+      const shortfall60 = target60 - data.signed;
+
+      const t1 = ratio - 60;
+      const t2 = ratio - 70;
+
+      report.push({
+        name,
+        role: data.role,
+        orders: data.orders,
+        signed: data.signed,
+        unsigned: data.unsigned,
+        ratio: ratio.toFixed(2) + "%",
+        evaluation:
+          data.role === "Admin" ? "N/A" : ratio >= 60 ? "ĐẠT" : "KHÔNG ĐẠT",
+        target60: Math.round(target60),
+        shortfall60: Math.max(0, Math.round(shortfall60)),
+        t1: t1.toFixed(2) + "%",
+        t2: t2.toFixed(2) + "%",
+      });
+    });
+
+    report.sort((a, b) => {
+      if (a.role === "Admin" && b.role !== "Admin") return -1;
+      if (a.role !== "Admin" && b.role === "Admin") return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    const totalRatio = totalOrders > 0 ? (totalSigned / totalOrders) * 100 : 0;
+    const totalTarget60 = totalOrders * 0.6;
+    const totalShortfall60 = totalTarget60 - totalSigned;
+    const totalT1 = totalRatio - 60;
+    const totalT2 = totalRatio - 70;
+
+    report.push({
+      name: "TỔNG",
+      role: "",
+      orders: totalOrders,
+      signed: totalSigned,
+      unsigned: totalUnsigned,
+      ratio: totalRatio.toFixed(2) + "%",
+      evaluation: totalRatio >= 60 ? "ĐẠT" : "KHÔNG ĐẠT",
+      target60: Math.round(totalTarget60),
+      shortfall60: Math.max(0, Math.round(totalShortfall60)),
+      t1: totalT1.toFixed(2) + "%",
+      t2: totalT2.toFixed(2) + "%",
+    });
+
+    return report;
+  };
+
+  const getEvaluationClass = (evaluation: string) => {
+    if (evaluation === "ĐẠT") return "bg-green-500 text-white";
+    if (evaluation === "KHÔNG ĐẠT") return "bg-red-500 text-white";
+    return "bg-yellow-300 text-black";
+  };
+
+  // Filter logic
+  const filteredReport = useMemo(() => {
+    if (!showFilters) return report;
+
+    return report.filter((row) => {
+      // Always show TỔNG row
+      if (row.name === "TỔNG") return true;
+
+      // Filter by role
+      if (filters.role && row.role !== filters.role) return false;
+
+      // Filter by evaluation
+      if (filters.evaluation && row.evaluation !== filters.evaluation)
+        return false;
+
+      // Filter by name search
+      if (
+        filters.nameSearch &&
+        !row.name.toLowerCase().includes(filters.nameSearch.toLowerCase())
+      )
+        return false;
+
+      return true;
+    });
+  }, [report, filters, showFilters]);
+
+  const uniqueRoles = useMemo(() => {
+    const roles = [
+      ...new Set(report.map((row) => row.role).filter((role) => role)),
+    ];
+    return roles;
+  }, [report]);
+
+  const uniqueEvaluations = useMemo(() => {
+    const evaluations = [
+      ...new Set(
+        report
+          .map((row) => row.evaluation)
+          .filter((item) => item && item !== "N/A")
+      ),
+    ];
+    return evaluations;
+  }, [report]);
+
+  const clearFilters = () => {
+    setFilters({
+      role: "",
+      evaluation: "",
+      nameSearch: "",
+    });
+  };
+
+  const getRowNumber = (row: any, index: number) => {
+    if (row.name === "TỔNG") return "";
+    if (showFilters) {
+      const filteredIndex = filteredReport.findIndex(
+        (item) => item.name === row.name && item.role === row.role
+      );
+      return filteredIndex === filteredReport.length - 1
+        ? ""
+        : filteredIndex + 1;
+    }
+    return index + 1;
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-2">
+      <div className="max-w-full mx-auto">
+        <div className="text-center mb-4">
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">
+            BÁO CÁO KÝ NHẬN
+          </h1>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+
+        <div className="mb-4 flex justify-center items-center space-x-3 bg-white rounded p-3 shadow-sm">
+          <input
+            type="file"
+            accept=".xlsx, .xls"
+            onChange={processExcel}
+            className="file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded text-xs"
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          <button
+            onClick={() => {
+              setReport([]);
+              setError(null);
+              setFilters({ role: "", evaluation: "", nameSearch: "" });
+              setShowFilters(false);
+            }}
+            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50"
+            disabled={isLoading}
+          >
+            Xóa Báo Cáo
+          </button>
+        </div>
+
+        {isLoading && (
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+            <p className="text-blue-600 mt-2 text-sm">Đang xử lý...</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded mb-3 text-center text-sm">
+            {error}
+          </div>
+        )}
+
+        {report.length > 0 && (
+          <div className="w-full overflow-x-auto">
+            <div className="bg-white rounded border shadow-sm">
+              <div className="bg-blue-600 text-white px-2 py-1 text-center flex items-center justify-between">
+                <h2 className="text-sm font-semibold">BÁO CÁO TỔNG HỢP</h2>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className="flex items-center space-x-1 bg-blue-500 hover:bg-blue-400 px-2 py-1 rounded text-xs transition-colors"
+                  >
+                    {showFilters ? (
+                      <FilterX className="w-3 h-3" />
+                    ) : (
+                      <Filter className="w-3 h-3" />
+                    )}
+                    <span>{showFilters ? "Ẩn Filter" : "Hiện Filter"}</span>
+                  </button>
+                </div>
+              </div>
+
+              {showFilters && (
+                <div className="bg-gray-50 border-b border-gray-200 p-3">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Tìm theo tên:
+                      </label>
+                      <input
+                        type="text"
+                        value={filters.nameSearch}
+                        onChange={(e) =>
+                          setFilters({ ...filters, nameSearch: e.target.value })
+                        }
+                        placeholder="Nhập tên nhân viên..."
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Phân loại:
+                      </label>
+                      <select
+                        value={filters.role}
+                        onChange={(e) =>
+                          setFilters({ ...filters, role: e.target.value })
+                        }
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="">Tất cả</option>
+                        {uniqueRoles.map((role) => (
+                          <option key={role} value={role}>
+                            {role}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Đánh giá:
+                      </label>
+                      <select
+                        value={filters.evaluation}
+                        onChange={(e) =>
+                          setFilters({ ...filters, evaluation: e.target.value })
+                        }
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="">Tất cả</option>
+                        {uniqueEvaluations.map((evaluation) => (
+                          <option key={evaluation} value={evaluation}>
+                            {evaluation}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <button
+                        onClick={clearFilters}
+                        className="w-full bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                      >
+                        Xóa Filter
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div id="report-table" className="overflow-x-auto">
+                <table className="w-full border-collapse text-xs border border-gray-500">
+                  <thead>
+                    <tr className="bg-gray-200">
+                      {[
+                        "STT",
+                        "Nhân viên phát kiện",
+                        "Phân loại",
+                        "Số đơn hàng phát",
+                        "Tổng đơn ký nhận",
+                        "Chưa ký nhận",
+                        "Tỉ lệ ký nhận thành công",
+                        "Đánh giá",
+                        "Lượng đơn cần đạt 60%",
+                        "Lượng đơn thiếu cần xử lý để đạt 60%",
+                        "T1 - 60%",
+                        "T2 - 70%",
+                      ].map((title, i) => (
+                        <th
+                          key={i}
+                          className={`border border-gray-500 px-1 py-1 text-xs font-semibold text-gray-700 ${
+                            i === 1 ? "text-left" : "text-center"
+                          }`}
+                        >
+                          {title}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredReport.map((row, index) => (
+                      <tr
+                        key={`${row.name}-${row.role}-${index}`}
+                        className={`${
+                          row.name === "TỔNG"
+                            ? "bg-yellow-100 font-semibold text-sm"
+                            : index % 2 === 0
+                            ? "bg-white"
+                            : "bg-gray-50"
+                        } hover:bg-blue-100 transition-colors`}
+                      >
+                        {[
+                          getRowNumber(row, index),
+                          row.name,
+                          row.role,
+                          row.orders,
+                          row.signed,
+                          row.unsigned,
+                          row.ratio,
+                          row.evaluation,
+                          row.target60,
+                          row.shortfall60,
+                          row.t1,
+                          row.t2,
+                        ].map((cell, i) => (
+                          <td
+                            key={i}
+                            className={`border border-gray-500 px-1 py-0.5 text-xs text-gray-800 font-semibold ${
+                              i === 1 ? "text-left" : "text-center"
+                            } ${
+                              i === 7
+                                ? getEvaluationClass(row.evaluation) +
+                                  " font-bold"
+                                : ""
+                            }`}
+                          >
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
