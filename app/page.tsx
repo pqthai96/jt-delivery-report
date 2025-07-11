@@ -220,7 +220,7 @@ export default function Home() {
       nameSearch: "",
     });
   };
-s
+  
   return (
     <div className="min-h-screen bg-gray-100 p-2">
       <div className="max-w-[80%] mx-auto">
