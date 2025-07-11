@@ -144,7 +144,7 @@ export default function Home() {
       return "bg-[#ffff00] text-black extra-bold";
 
     // For "Đạt" cases, apply normal alternating background
-    const bgClass = rowIndex % 2 !== 0 ? "bg-[#E6F0FA]" : "bg-white";
+    const bgClass = rowIndex % 2 !== 0 ? "bg-[#ddebf7]" : "bg-white";
     return `${bgClass} text-black extra-bold`;
   };
 
@@ -164,7 +164,7 @@ export default function Home() {
     if (columnIndex > 5) return "bg-white";
 
     // For columns before "Đánh giá" (index 0-4), use alternating colors
-    if (rowIndex % 2 !== 0) return "bg-[#E6F0FA]";
+    if (rowIndex % 2 !== 0) return "bg-[#ddebf7]";
 
     return "bg-white";
   };
