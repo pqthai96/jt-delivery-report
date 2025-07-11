@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Calibri&display=swap");
 
 :root {
   --background: #ffffff;
@@ -23,4 +24,60 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* @font-face {
+  font-family: "Times New Roman";
+  src: local("Times New Roman");
+}
+
+@font-face {
+  font-family: "Calibri";
+  src: local("Calibri"),
+    url("https://fonts.gstatic.com/s/calibri/v1/foobar.woff2") format("woff2");
+}
+
+.font-times {
+  font-family: "Times New Roman", serif;
+}
+
+.font-calibri {
+  font-family: "Calibri", sans-serif;
+} */
+
+font-face {
+  font-family: "Times New Roman";
+  src: local("Times New Roman");
+  font-weight: 400; /* Regular */
+}
+
+@font-face {
+  font-family: "Times New Roman";
+  src: local("Times New Roman Bold");
+  font-weight: 700; /* Bold */
+}
+
+@font-face {
+  font-family: "Calibri";
+  src: local("Calibri");
+  font-weight: 400; /* Regular */
+}
+
+@font-face {
+  font-family: "Calibri";
+  src: local("Calibri Bold");
+  font-weight: 700; /* Bold */
+}
+
+.font-times {
+  font-family: "Times New Roman", serif;
+}
+
+.font-calibri {
+  font-family: "Calibri", sans-serif;
+}
+
+/* Custom class for bolder text */
+.extra-bold {
+  font-weight: 800; /* Use bold weight */
 }

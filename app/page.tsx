@@ -105,8 +105,7 @@ export default function Home() {
         signed: data.signed,
         unsigned: data.unsigned,
         ratio: ratio.toFixed(2) + "%",
-        evaluation:
-          data.role === "Admin" ? "N/A" : ratio >= 60 ? "ĐẠT" : "KHÔNG ĐẠT",
+        evaluation: ratio >= 60 ? "Đạt" : "Không đạt",
         target60: Math.round(target60),
         shortfall60: Math.max(0, Math.round(shortfall60)),
         t1: t1.toFixed(2) + "%",
@@ -114,11 +113,7 @@ export default function Home() {
       });
     });
 
-    report.sort((a, b) => {
-      if (a.role === "Admin" && b.role !== "Admin") return -1;
-      if (a.role !== "Admin" && b.role === "Admin") return 1;
-      return a.name.localeCompare(b.name);
-    });
+    report.sort((a, b) => a.name.localeCompare(b.name));
 
     const totalRatio = totalOrders > 0 ? (totalSigned / totalOrders) * 100 : 0;
     const totalTarget60 = totalOrders * 0.6;
@@ -133,7 +128,7 @@ export default function Home() {
       signed: totalSigned,
       unsigned: totalUnsigned,
       ratio: totalRatio.toFixed(2) + "%",
-      evaluation: totalRatio >= 60 ? "ĐẠT" : "KHÔNG ĐẠT",
+      evaluation: totalRatio >= 60 ? "Đạt" : "Không đạt",
       target60: Math.round(totalTarget60),
       shortfall60: Math.max(0, Math.round(totalShortfall60)),
       t1: totalT1.toFixed(2) + "%",
@@ -143,10 +138,35 @@ export default function Home() {
     return report;
   };
 
-  const getEvaluationClass = (evaluation: string) => {
-    if (evaluation === "ĐẠT") return "bg-green-500 text-white";
-    if (evaluation === "KHÔNG ĐẠT") return "bg-red-500 text-white";
-    return "bg-yellow-300 text-black";
+  const getEvaluationClass = (row: any, rowIndex: number) => {
+    if (row.name === "TỔNG") return "text-black extra-bold font-calibri";
+    if (row.evaluation === "Không đạt")
+      return "bg-[#ffff00] text-black extra-bold";
+
+    // For "Đạt" cases, apply normal alternating background
+    const bgClass = rowIndex % 2 !== 0 ? "bg-[#E6F0FA]" : "bg-white";
+    return `${bgClass} text-black extra-bold`;
+  };
+
+  // Function to get cell background color based on row and column
+  const getCellBackgroundClass = (
+    row: any,
+    columnIndex: number,
+    rowIndex: number
+  ) => {
+    // Header row or TỔNG row - no special background handling
+    if (row.name === "TỔNG") return "";
+
+    // For "Đánh giá" column (index 5), don't apply background here - let getEvaluationClass handle it
+    if (columnIndex === 5) return "";
+
+    // For columns after "Đánh giá" (index > 5), always use white background
+    if (columnIndex > 5) return "bg-white";
+
+    // For columns before "Đánh giá" (index 0-4), use alternating colors
+    if (rowIndex % 2 !== 0) return "bg-[#E6F0FA]";
+
+    return "bg-white";
   };
 
   // Filter logic
@@ -201,34 +221,21 @@ export default function Home() {
     });
   };
 
-  const getRowNumber = (row: any, index: number) => {
-    if (row.name === "TỔNG") return "";
-    if (showFilters) {
-      const filteredIndex = filteredReport.findIndex(
-        (item) => item.name === row.name && item.role === row.role
-      );
-      return filteredIndex === filteredReport.length - 1
-        ? ""
-        : filteredIndex + 1;
-    }
-    return index + 1;
-  };
-
   return (
-    <div className="min-h-screen bg-gray-100 p-2">
-      <div className="max-w-full mx-auto">
-        <div className="text-center mb-4">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">
+    <div className="min-h-screen bg-gray-50 p-1 text-xs">
+      <div className="max-w-[80%] mx-auto">
+        <div className="text-center mb-3">
+          <h1 className="text-lg font-bold text-gray-800 mb-2">
             BÁO CÁO KÝ NHẬN
           </h1>
         </div>
 
-        <div className="mb-4 flex justify-center items-center space-x-3 bg-white rounded p-3 shadow-sm">
+        <div className="mb-3 flex justify-center items-center space-x-3 bg-white rounded-lg p-2 shadow-md">
           <input
             type="file"
             accept=".xlsx, .xls"
             onChange={processExcel}
-            className="file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded text-xs"
+            className="file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded-lg text-xs"
           />
           <button
             onClick={() => {
@@ -237,49 +244,43 @@ export default function Home() {
               setFilters({ role: "", evaluation: "", nameSearch: "" });
               setShowFilters(false);
             }}
-            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50"
+            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
             disabled={isLoading}
           >
             Xóa Báo Cáo
+          </button>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center space-x-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium transition-colors"
+          >
+            {showFilters ? (
+              <FilterX className="w-3 h-3" />
+            ) : (
+              <Filter className="w-3 h-3" />
+            )}
+            <span>{showFilters ? "Ẩn Filter" : "Hiện Filter"}</span>
           </button>
         </div>
 
         {isLoading && (
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-            <p className="text-blue-600 mt-2 text-sm">Đang xử lý...</p>
+            <p className="text-blue-600 mt-2 text-xs">Đang xử lý...</p>
           </div>
         )}
 
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded mb-3 text-center text-sm">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-2 py-1 rounded-lg mb-3 text-center text-xs">
             {error}
           </div>
         )}
 
         {report.length > 0 && (
           <div className="w-full overflow-x-auto">
-            <div className="bg-white rounded border shadow-sm">
-              <div className="bg-blue-600 text-white px-2 py-1 text-center flex items-center justify-between">
-                <h2 className="text-sm font-semibold">BÁO CÁO TỔNG HỢP</h2>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    className="flex items-center space-x-1 bg-blue-500 hover:bg-blue-400 px-2 py-1 rounded text-xs transition-colors"
-                  >
-                    {showFilters ? (
-                      <FilterX className="w-3 h-3" />
-                    ) : (
-                      <Filter className="w-3 h-3" />
-                    )}
-                    <span>{showFilters ? "Ẩn Filter" : "Hiện Filter"}</span>
-                  </button>
-                </div>
-              </div>
-
+            <div className="bg-white rounded-lg border shadow-lg">
               {showFilters && (
-                <div className="bg-gray-50 border-b border-gray-200 p-3">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                <div className="bg-gray-50 border-b border-gray-200 p-2">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
                         Tìm theo tên:
@@ -291,7 +292,7 @@ export default function Home() {
                           setFilters({ ...filters, nameSearch: e.target.value })
                         }
                         placeholder="Nhập tên nhân viên..."
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -304,7 +305,7 @@ export default function Home() {
                         onChange={(e) =>
                           setFilters({ ...filters, role: e.target.value })
                         }
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="">Tất cả</option>
                         {uniqueRoles.map((role) => (
@@ -324,7 +325,7 @@ export default function Home() {
                         onChange={(e) =>
                           setFilters({ ...filters, evaluation: e.target.value })
                         }
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="">Tất cả</option>
                         {uniqueEvaluations.map((evaluation) => (
@@ -348,28 +349,26 @@ export default function Home() {
               )}
 
               <div id="report-table" className="overflow-x-auto">
-                <table className="w-full border-collapse text-xs border border-gray-500">
-                  <thead>
-                    <tr className="bg-gray-200">
+                <table className="w-full border border-black text-xs">
+                  <thead className="tracking-wider">
+                    <tr className="bg-[#92d050] font-times text-white extra-bold">
+                      <th className="border border-black px-1 py-1 text-sm extra-bold text-white text-left py-3">
+                        Nhân viên phát kiện
+                      </th>
                       {[
-                        "STT",
-                        "Nhân viên phát kiện",
-                        "Phân loại",
                         "Số đơn hàng phát",
                         "Tổng đơn ký nhận",
                         "Chưa ký nhận",
-                        "Tỉ lệ ký nhận thành công",
+                        "Tỷ lệ ký nhận thực tế",
                         "Đánh giá",
                         "Lượng đơn cần đạt 60%",
-                        "Lượng đơn thiếu cần xử lý để đạt 60%",
-                        "T1 - 60%",
-                        "T2 - 70%",
+                        "Lượng đơn thiếu cần xử lý 60%",
+                        "T1 -60%",
+                        "T2 -70%",
                       ].map((title, i) => (
                         <th
                           key={i}
-                          className={`border border-gray-500 px-1 py-1 text-xs font-semibold text-gray-700 ${
-                            i === 1 ? "text-left" : "text-center"
-                          }`}
+                          className="border border-black px-1 py-1 text-sm extra-bold text-center"
                         >
                           {title}
                         </th>
@@ -381,17 +380,11 @@ export default function Home() {
                       <tr
                         key={`${row.name}-${row.role}-${index}`}
                         className={`${
-                          row.name === "TỔNG"
-                            ? "bg-yellow-100 font-semibold text-sm"
-                            : index % 2 === 0
-                            ? "bg-white"
-                            : "bg-gray-50"
-                        } hover:bg-blue-100 transition-colors`}
+                          row.name === "TỔNG" ? "bg-[#92d050]" : ""
+                        }`}
                       >
                         {[
-                          getRowNumber(row, index),
                           row.name,
-                          row.role,
                           row.orders,
                           row.signed,
                           row.unsigned,
@@ -404,14 +397,15 @@ export default function Home() {
                         ].map((cell, i) => (
                           <td
                             key={i}
-                            className={`border border-gray-500 px-1 py-0.5 text-xs text-gray-800 font-semibold ${
-                              i === 1 ? "text-left" : "text-center"
+                            className={`border border-black px-1 py-0 text-sm text-black ${
+                              i === 0 ? "text-left" : "text-center"
                             } ${
-                              i === 7
-                                ? getEvaluationClass(row.evaluation) +
-                                  " font-bold"
-                                : ""
-                            }`}
+                              row.name === "TỔNG"
+                                ? "extra-bold font-times tracking-wider"
+                                : "font-medium font-calibri tracking-wide"
+                            } ${
+                              i === 5 ? getEvaluationClass(row, index) : ""
+                            } ${getCellBackgroundClass(row, i, index)}`}
                           >
                             {cell}
                           </td>
