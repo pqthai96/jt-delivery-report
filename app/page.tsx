@@ -224,11 +224,11 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-100 p-2">
       <div className="max-w-[90%] mx-auto">
-        <div className="text-center mb-4">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">
-            BÁO CÁO KÝ NHẬN
-          </h1>
-        </div>
+        {/*<div className="text-center mb-4">*/}
+        {/*  <h1 className="text-2xl font-bold text-gray-800 mb-2">*/}
+        {/*    BÁO CÁO KÝ NHẬN*/}
+        {/*  </h1>*/}
+        {/*</div>*/}
 
         <div className="mb-3 flex justify-center items-center space-x-3 bg-white rounded-lg p-2 shadow-md">
           <input
